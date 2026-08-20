@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Key Management</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #171a21;
+      --border: #262b36;
+      --text: #e6e8ee;
+      --muted: #8b93a3;
+      --accent: #4f7cff;
+      --accent-hover: #3a66ff;
+      --danger: #e5484d;
+      --danger-hover: #c83a3f;
+      --success: #30a46c;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      padding: 24px 32px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+    }
+    header h1 { margin: 0; font-size: 20px; letter-spacing: -0.02em; }
+    header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    main { max-width: 1000px; margin: 0 auto; padding: 24px 32px 64px; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .card h2 { margin: 0 0 16px; font-size: 15px; font-weight: 600; }
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    input, select, button { font: inherit; }
+    input, select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 14px;
+    }
+    input { flex: 1; min-width: 180px; }
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 9px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+    }
+    button:hover { background: var(--accent-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .table-wrap { margin-top: 20px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th {
+      text-align: left;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    .key-mono {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: #c9d2e3;
+      word-break: break-all;
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge.active { background: rgba(48, 164, 108, 0.15); color: var(--success); }
+    .badge.revoked { background: rgba(229, 72, 77, 0.15); color: var(--danger); }
+    .badge.tier { background: rgba(79, 124, 255, 0.12); color: #9db6ff; }
+    .revoke-btn { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+    .revoke-btn:hover { background: var(--danger); color: #fff; }
+    .copy-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+    .copy-btn:hover { color: var(--text); border-color: var(--muted); }
+    .muted { color: var(--muted); font-size: 13px; }
+    .empty { text-align: center; color: var(--muted); padding: 40px 0; }
+    .actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .new-key {
+      margin-top: 20px;
+      background: rgba(48, 164, 108, 0.08);
+      border: 1px solid rgba(48, 164, 108, 0.35);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13px;
+      word-break: break-all;
+    }
+    .new-key code { font-family: var(--mono); color: var(--success); }
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 14px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.success { border-color: var(--success); }
+    #toast.error { border-color: var(--danger); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>API Key Management</h1>
+    <p>Generate and revoke API keys for your service</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Generate a new key</h2>
+      <form id="gen-form" class="form-row">
+        <input id="name" name="name" type="text" placeholder="Key name (e.g. Production bot)" />
+        <select id="tier" name="tier">
+          <option value="free">Free</option>
+          <option value="pro">Pro</option>
+          <option value="enterprise">Enterprise</option>
+        </select>
+        <button type="submit" id="gen-btn">Generate key</button>
+      </form>
+      <div id="new-key" class="new-key" hidden>
+        Copy this key now &mdash; it won&rsquo;t be shown again.<br />
+        <code id="new-key-value"></code>
+      </div>
+    </section>
+
+    <section class="card table-wrap" style="margin-top:20px;">
+      <h2>Keys</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Key</th>
+            <th>Name</th>
+            <th>Tier</th>
+            <th>Created</th>
+            <th>Status</th>
+            <th style="text-align:right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="keys-body">
+          <tr><td colspan="6" class="empty">Loading&hellip;</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+
+  <script>
+    const tbody = document.getElementById('keys-body');
+    const form = document.getElementById('gen-form');
+    const genBtn = document.getElementById('gen-btn');
+    const newKeyBox = document.getElementById('new-key');
+    const newKeyValue = document.getElementById('new-key-value');
+    const toast = document.getElementById('toast');
+
+    let toastTimer;
+
+    function showToast(message, type) {
+      toast.textContent = message;
+      toast.className = type || '';
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString();
+    }
+
+    function render(keys) {
+      if (!keys.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No keys yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = keys.map((k) => {
+        const active = k.status === 'active';
+        const revokeBtn = active
+          ? `<button class="revoke-btn" data-id="${k.id}" data-name="${escapeAttr(k.name)}">Revoke</button>`
+          : '<span class="muted">Revoked</span>';
+        const copyBtn = active
+          ? `<button class="copy-btn" data-masked="${k.masked}">Copy</button>`
+          : '';
+        return `
+          <tr>
+            <td class="key-mono">${k.masked}</td>
+            <td>${escapeHtml(k.name)}</td>
+            <td><span class="badge tier">${escapeHtml(k.tier)}</span></td>
+            <td class="muted">${formatDate(k.createdAt)}</td>
+            <td><span class="badge ${active ? 'active' : 'revoked'}">${active ? 'Active' : 'Revoked'}</span></td>
+            <td><div class="actions">${copyBtn}${revokeBtn}</div></td>
+          </tr>`;
+      }).join('');
+    }
+
+    function escapeHtml(value) {
+      const div = document.createElement('div');
+      div.textContent = value;
+      return div.innerHTML;
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/"/g, '&quot;');
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch('/api/keys');
+        const data = await res.json();
+        render(data.keys || []);
+      } catch (err) {
+        showToast('Failed to load keys.', 'error');
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      genBtn.disabled = true;
+      try {
+        const res = await fetch('/api/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: document.getElementById('name').value.trim(),
+            tier: document.getElementById('tier').value,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to generate key');
+        newKeyValue.textContent = data.key.token;
+        newKeyBox.hidden = false;
+        form.reset();
+        showToast('Key generated.', 'success');
+        await refresh();
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        genBtn.disabled = false;
+      }
+    });
+
+    tbody.addEventListener('click', async (e) => {
+      const revokeBtn = e.target.closest('.revoke-btn');
+      if (revokeBtn) {
+        const id = revokeBtn.dataset.id;
+        if (!confirm(`Revoke key "${revokeBtn.dataset.name}"? This cannot be undone.`)) return;
+        revokeBtn.disabled = true;
+        try {
+          const res = await fetch(`/api/keys/${id}`, { method: 'DELETE' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to revoke key');
+          showToast('Key revoked.', 'success');
+          await refresh();
+        } catch (err) {
+          revokeBtn.disabled = false;
+          showToast(err.message, 'error');
+        }
+        return;
+      }
+
+      const copyBtn = e.target.closest('.copy-btn');
+      if (copyBtn) {
+        try {
+          const res = await fetch('/api/keys');
+          const data = await res.json();
+          const key = data.keys.find((k) => k.masked === copyBtn.dataset.masked);
+          if (key) {
+            await navigator.clipboard.writeText(key.masked);
+            showToast('Key copied.', 'success');
+          }
+        } catch (err) {
+          showToast('Copy failed.', 'error');
+        }
+      }
+    });
+
+    refresh();
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "key-management-dashboard",
+  "version": "1.0.0",
+  "description": "Vercel key management dashboard with generation and revocation API",
+  "main": "api/index.js",
+  "scripts": {
+    "start": "node api/index.js",
+    "dev": "node api/index.js"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
